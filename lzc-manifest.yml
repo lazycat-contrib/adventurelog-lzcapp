@@ -8,7 +8,6 @@ application:
   upstreams:
     - location: /
       backend: http://adventurelog:80/
-
 services:
   db:
     # Geography columns are used for places and routes, so this needs PostGIS.
@@ -25,10 +24,9 @@ services:
       timeout: 10s
       retries: 10
       start_period: 30s
-
   adventurelog:
-    # upstream: ghcr.io/seanmorley15/adventurelog:0.13.1
-    image: ghcr.1ms.run/seanmorley15/adventurelog:0.13.1
+    # upstream: ghcr.io/seanmorley15/adventurelog:v0.13.1
+    image: ghcr.1ms.run/seanmorley15/adventurelog:v0.13.1
     environment:
       - SITE_URL=https://{{ .S.AppDomain }}
       - PGHOST=db
@@ -53,7 +51,6 @@ services:
       start_period: 150s
     depends_on:
       - db
-
 usage: |
   AdventureLog 是自托管的旅行日志：在地图上记录你去过的行程与地点，
   为每一站保存照片与笔记，并查看统计与足迹。
