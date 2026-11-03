@@ -1,0 +1,68 @@
+application:
+  subdomain: adventurelog
+  multi_instance: false
+  # The app ships its own account system (sign-in page), so it is exposed
+  # directly and authenticates users itself.
+  public_path:
+    - /
+  upstreams:
+    - location: /
+      backend: http://adventurelog:80/
+
+services:
+  db:
+    # Geography columns are used for places and routes, so this needs PostGIS.
+    image: docker.1ms.run/postgis/postgis:16-3.5
+    environment:
+      - POSTGRES_DB=database
+      - POSTGRES_USER=adventure
+      - POSTGRES_PASSWORD={{ printf "%x" (stable_secret "db_password") }}
+    binds:
+      - /lzcapp/var/db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U adventure -d database"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  adventurelog:
+    # upstream: ghcr.io/seanmorley15/adventurelog:0.13.1
+    image: ghcr.1ms.run/seanmorley15/adventurelog:0.13.1
+    environment:
+      - SITE_URL=https://{{ .S.AppDomain }}
+      - PGHOST=db
+      - POSTGRES_DB=database
+      - POSTGRES_USER=adventure
+      - POSTGRES_PASSWORD={{ printf "%x" (stable_secret "db_password") }}
+      - PORT=3000
+      # Overrides the upstream admin/admin default. The entrypoint only creates
+      # the account when the username does not exist yet, so this stays
+      # idempotent across restarts.
+      - DJANGO_ADMIN_USERNAME=admin
+      - DJANGO_ADMIN_PASSWORD={{ .U.admin_password }}
+      - DJANGO_ADMIN_EMAIL={{ .U.admin_email }}
+      - TZ=Asia/Shanghai
+    binds:
+      - /lzcapp/var/media:/code/media/
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/health || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 15
+      start_period: 150s
+    depends_on:
+      - db
+
+usage: |
+  AdventureLog 是自托管的旅行日志：在地图上记录你去过的行程与地点，
+  为每一站保存照片与笔记，并查看统计与足迹。
+
+  - 用部署时设置的「管理员密码」配合用户名 `admin` 登录；
+    上游默认的 admin/admin 弱口令已被本包的随机密码覆盖。
+  - 应用自带账号体系，所以它直接对外开放（public_path），
+    登录与权限都由 AdventureLog 自己负责。
+  - 后台由 PostgreSQL + PostGIS 组成（存地图坐标，普通 PostgreSQL 不够），
+    两个服务都在应用内部，不需要你另外准备数据库。
+  - 未做真机验证：登录、创建行程与地点、上传照片、地图展示以及重启后数据留存
+    均未在设备上实测。
